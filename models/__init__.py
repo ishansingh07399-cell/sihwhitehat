@@ -1,0 +1,1 @@
+from .nlp_extractor import ner_pipeline

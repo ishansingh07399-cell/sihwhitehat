@@ -1,0 +1,30 @@
+# Backend API Integration Plan
+
+Currently, the React frontend is running in "Demo Mode" and relying on hardcoded mock data because it is entirely disconnected from the Python Deep Learning pipeline (which only runs inside the standalone Streamlit interface). 
+
+To make your frontend fully dynamic and responsive to your data uploads, we need to bridge the React application to the Python ML models.
+
+## Proposed Changes
+
+### 1. Build a FastAPI Backend Server (`api_server.py`)
+I will create a high-performance REST API using FastAPI. This server will:
+- Expose a `POST /api/analyze` endpoint.
+- Accept multipart form data uploads (Raw Text, Call Records CSV, Financial Ledger CSV).
+- Pass the data through the existing AI models (`ner_pipeline`, `siamese_net`, and `hetero_gnn`).
+- Construct the NetworkX knowledge graph and run centrality and smurfing algorithms.
+- Return the processed results formatted exactly as the React frontend expects, replacing `MOCK_ANALYSIS_DATA`.
+
+### 2. Install Required Dependencies
+- Ensure `fastapi`, `uvicorn`, and `python-multipart` are installed in your Python virtual environment.
+
+### 3. Connect the Frontend
+- Update `frontend/.env` to set `VITE_API_URL=http://localhost:8000`. This will automatically toggle the frontend out of "Demo Mode" and route all uploads to our new Python backend.
+
+### 4. Launch Background Services
+- Start the new FastAPI server on port 8000 so the frontend can communicate with it.
+
+## User Review Required
+> [!IMPORTANT]
+> The AI processing can take a few moments depending on the size of the uploaded files (especially running the BERT Transformer for entity extraction). The frontend already has a loading spinner, but please be aware of the processing time during analysis.
+
+Click **Proceed** to approve this plan, and I will write the API server, connect the frontend, and boot it up!
