@@ -149,15 +149,15 @@ export default function Dashboard({ analysisData }) {
               {/* Draw nodes */}
               {data.nodes.slice(0, 12).map((node, i) => {
                 const colorMap = {
-                  PERSON: '#10b981', ORG: '#10b981', LOC: '#10b981',
-                  PHONE: '#10b981', ACCOUNT: '#10b981'
+                  PERSON: '#005EA2', ORG: '#005EA2', LOC: '#005EA2',
+                  PHONE: '#005EA2', ACCOUNT: '#005EA2'
                 };
                 const cx = 40 + (i % 5) * 80;
                 const cy = 40 + Math.floor(i / 5) * 70;
                 return (
                   <g key={node.id}>
                     <circle cx={cx} cy={cy} r={node.size / 3 + 4}
-                      fill={colorMap[node.group] || '#10b981'} opacity={1.0}>
+                      fill={colorMap[node.group] || '#005EA2'} opacity={1.0}>
                     </circle>
                   </g>
                 );

@@ -8,7 +8,7 @@ import {
   HiOutlineDocumentDownload,
   HiOutlineMap
 } from 'react-icons/hi';
-import { Play } from 'lucide-react';
+import { Play, ShieldCheck } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: HiOutlineViewGrid, label: 'Dashboard', id: 'tour-sidebar-dash' },
@@ -25,7 +25,9 @@ export default function Sidebar({ isOpen, setIsOpen, theme, toggleTheme }) {
     <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-brand" style={{ justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div className="sidebar-brand-icon">🛡️</div>
+          <div className="sidebar-brand-icon">
+            <ShieldCheck size={24} strokeWidth={2.5} />
+          </div>
           <div className="sidebar-brand-text">Criminal Network<br />Intel System</div>
         </div>
         <button 

@@ -14,7 +14,7 @@ import './index.css';
 export default function App() {
   const [analysisData, setAnalysisData] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -35,7 +35,9 @@ export default function App() {
       <div className="app-layout">
         <div className="mobile-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="sidebar-brand-icon" style={{ width: 28, height: 28, fontSize: 14 }}>🛡️</div>
+            <div className="sidebar-brand-icon" style={{ width: 28, height: 28, fontSize: 14 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
             <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.8rem', fontWeight: 700 }}>COMMAND CENTER</div>
           </div>
           <button 

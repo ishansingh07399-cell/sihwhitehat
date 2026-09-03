@@ -171,15 +171,15 @@ async def analyze_data(
             
             # Map the AI's intent predictions to actual legal sections
             for label, score in zip(zs_result['labels'], zs_result['scores']):
-                if score > 0.6: # 60% confidence threshold
+                if score > 0.4: # 40% confidence threshold
                     if label == "murder or lethal violence":
-                        ipc_predictions.append({"section": "IPC 302", "description": "Punishment for murder", "reason": f"AI Intent Classification (Confidence: {score*100:.1f}%) detected lethal violence."})
+                        ipc_predictions.append({"section": "IPC 302", "description": "Punishment for murder", "reason": f"Intent Classification (Confidence: {score*100:.1f}%) detected lethal violence."})
                     elif label == "financial fraud or money laundering":
-                        ipc_predictions.append({"section": "IPC 420", "description": "Cheating and fraud", "reason": f"AI Intent Classification (Confidence: {score*100:.1f}%) detected financial fraud."})
+                        ipc_predictions.append({"section": "IPC 420", "description": "Cheating and fraud", "reason": f"Intent Classification (Confidence: {score*100:.1f}%) detected financial fraud."})
                     elif label == "criminal conspiracy or coordinated planning":
-                        ipc_predictions.append({"section": "IPC 120B", "description": "Criminal conspiracy", "reason": f"AI Intent Classification (Confidence: {score*100:.1f}%) detected conspiracy."})
+                        ipc_predictions.append({"section": "IPC 120B", "description": "Criminal conspiracy", "reason": f"Intent Classification (Confidence: {score*100:.1f}%) detected conspiracy."})
                     elif label == "illegal weapons or firearms":
-                        ipc_predictions.append({"section": "Arms Act 25", "description": "Offences relating to arms", "reason": f"AI Intent Classification (Confidence: {score*100:.1f}%) detected illegal arms."})
+                        ipc_predictions.append({"section": "Arms Act 25", "description": "Offences relating to arms", "reason": f"Intent Classification (Confidence: {score*100:.1f}%) detected illegal arms."})
         except Exception as e:
             print(f"Zero-shot classification error: {e}")
             pass

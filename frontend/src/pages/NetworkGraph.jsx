@@ -4,12 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import ForceGraph2D from 'react-force-graph-2d';
 
 const NODE_COLORS = {
-  PERSON: '#10b981', // Emerald for key suspects
-  ORG: '#94a3b8',    // Slate for everything else
-  LOC: '#94a3b8',
-  PHONE: '#94a3b8',
-  ACCOUNT: '#94a3b8',
-  MISC: '#94a3b8',
+  PERSON: '#2491FF',  // Bright Blue
+  ORG: '#005EA2',     // Medium Blue
+  LOC: '#4BA3FF',     // Lighter Blue
+  PHONE: '#73B9FF',   // Very Light Blue
+  ACCOUNT: '#1A4480', // Darker Blue
+  MISC: '#A9AEB1',    // Grey
 };
 
 const FILTERS = ['All', 'PERSON', 'ORG', 'LOC', 'PHONE', 'ACCOUNT'];
@@ -121,26 +121,39 @@ export default function NetworkGraph({ analysisData }) {
   }, []);
 
   const nodeCanvasObject = useCallback((node, ctx, globalScale) => {
-    // Make nodes noticeably larger
-    const r = Math.sqrt(node.val) * 2.2;
+    if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
+    
+    // Make nodes noticeably larger, fallback to a default val if node.val is invalid
+    const val = (typeof node.val === 'number' && node.val >= 0) ? node.val : 4;
+    const r = Math.sqrt(val) * 2.2;
     const isSelected = selectedNode && selectedNode.id === node.id;
     const isGnnEdge = data.edges.some(
       e => e.label === 'GNN Predicted Link' && (e.source === node.id || e.target === node.id)
     );
+    const isLightMode = document.body.classList.contains('light-mode');
 
     // Outer ring for selected or GNN nodes
     if (isSelected || isGnnEdge) {
       ctx.beginPath();
       ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI);
-      ctx.strokeStyle = isSelected ? 'var(--text-primary)' : '#ff4444';
+      ctx.strokeStyle = isSelected ? (isLightMode ? '#1B1B1B' : '#FFFFFF') : '#ff4444';
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
 
-    // Node circle
+    // Node circle (3D Sphere Effect)
     ctx.beginPath();
     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = node.color;
+    
+    const gradient = ctx.createRadialGradient(
+      node.x - r/3, node.y - r/3, r/10,
+      node.x, node.y, r
+    );
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)'); // Shine
+    gradient.addColorStop(0.4, node.color); // Base color
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.7)'); // Shadow
+    
+    ctx.fillStyle = gradient;
     ctx.fill();
 
     // Dynamic label rendering for clarity
@@ -154,10 +167,10 @@ export default function NetworkGraph({ analysisData }) {
     
     // Draw label background for better contrast
     const textWidth = ctx.measureText(label).width;
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)'; // Dark bg with opacity
+    ctx.fillStyle = isLightMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(15, 23, 42, 0.7)'; // Dynamic bg with opacity
     ctx.fillRect(node.x - textWidth/2 - 2, node.y + r + 1, textWidth + 4, fontSize + 3);
     
-    ctx.fillStyle = '#f8fafc'; // Explicit hex for text color
+    ctx.fillStyle = isLightMode ? '#1B1B1B' : '#f8fafc'; // Explicit hex for text color
     ctx.fillText(label, node.x, node.y + r + 2);
   }, [selectedNode, data.edges]);
 
@@ -165,13 +178,14 @@ export default function NetworkGraph({ analysisData }) {
     const isGnn = link.label === 'GNN Predicted Link';
     const start = link.source;
     const end = link.target;
+    const isLightMode = document.body.classList.contains('light-mode');
 
     // Draw Line
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
-    ctx.strokeStyle = isGnn ? '#ff4444' : 'var(--text-muted)';
-    ctx.lineWidth = isGnn ? 1 : 0.5;
+    ctx.strokeStyle = isGnn ? '#ff4444' : (isLightMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.9)');
+    ctx.lineWidth = isGnn ? 2.5 : 2.0;
     if (isGnn) {
       ctx.setLineDash([2, 2]);
     }

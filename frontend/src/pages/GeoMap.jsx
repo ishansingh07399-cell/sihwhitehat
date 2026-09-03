@@ -185,8 +185,8 @@ export default function GeoMap({ analysisData }) {
                     key={geo.rsmKey}
                     geography={geo}
                     fill="var(--bg-primary)"
-                    stroke="var(--border-default)"
-                    strokeWidth={0.5 / zoom}
+                    stroke="var(--text-muted)"
+                    strokeWidth={1.2 / zoom}
                     style={{
                       default: { outline: 'none' },
                       hover: { fill: 'var(--bg-card-hover)', outline: 'none' },
