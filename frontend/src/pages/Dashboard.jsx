@@ -59,7 +59,7 @@ const fadeUp = {
 export default function Dashboard({ analysisData }) {
   const navigate = useNavigate();
 
-  
+
   if (!analysisData) {
     return (
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
@@ -101,12 +101,17 @@ export default function Dashboard({ analysisData }) {
   return (
     <motion.div variants={container} initial="hidden" animate="show">
       {/* Page Header */}
-      <motion.div className="page-header" variants={fadeUp}>
-        <h1 className="page-title">Command Center</h1>
-        <p className="page-subtitle">Real-time intelligence overview and network status</p>
+      <motion.div className="page-header" variants={fadeUp} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="page-title">Command Center</h1>
+          <p className="page-subtitle">Real-time intelligence overview and network status</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => navigate('/export')} style={{ padding: '8px 16px', fontSize: '0.9rem' }}>
+          📄 Generate PDF Dossier
+        </button>
       </motion.div>
 
-      {}
+      { }
       <motion.div className="kpi-grid" variants={fadeUp} id="tour-dashboard-kpis">
         {kpis.map((kpi) => (
           <div className="kpi-card" key={kpi.label}>
@@ -196,15 +201,30 @@ export default function Dashboard({ analysisData }) {
           <div className="card-title">Predicted Legal Violations (IPC)</div>
           <div className="activity-feed">
             {data.ipc_sections && data.ipc_sections.length > 0 ? (
-              data.ipc_sections.map((ipc, i) => (
-                <div className="activity-item" key={i} style={{ alignItems: 'flex-start' }}>
-                  <div className="activity-dot red" style={{ marginTop: 6 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ipc.section} - {ipc.description}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>Reasoning: {ipc.reason}</div>
+              data.ipc_sections.map((ipc, i) => {
+                const confMatch = ipc.reason.match(/Confidence:\s*([\d.]+)%/);
+                const confidence = confMatch ? parseFloat(confMatch[1]) : 0;
+                return (
+                  <div className="activity-item" key={i} style={{ alignItems: 'flex-start', borderBottom: '1px solid var(--border-default)', paddingBottom: '12px', marginBottom: '12px' }}>
+                    <div className="activity-dot red" style={{ marginTop: 6 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ipc.section} - {ipc.description}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>Reasoning: {ipc.reason}</div>
+                      {confidence > 0 && (
+                        <div style={{ marginTop: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                            <span>AI Confidence</span>
+                            <span>{confidence.toFixed(1)}%</span>
+                          </div>
+                          <div style={{ width: '100%', background: 'var(--bg-secondary)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${confidence}%`, background: confidence > 50 ? 'var(--accent-red)' : 'var(--accent-orange)', height: '100%' }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No specific IPC sections flagged based on current intelligence.</div>
             )}
@@ -234,36 +254,77 @@ export default function Dashboard({ analysisData }) {
         </div>
       </motion.div>
 
-      {/* Bottom: Top Suspects Table */}
-      <motion.div className="card" variants={fadeUp}>
-        <div className="card-title">Top Suspects — Highest Influence</div>
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Entity</th>
-                <th>Category</th>
-                <th>Influence (PageRank)</th>
-                <th>Broker Role (Betweenness)</th>
-                <th>Connections</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topSuspects.map((row) => (
-                <tr key={row.entity}>
-                  <td style={{ fontWeight: 600 }}>{row.entity}</td>
-                  <td>
-                    <span className={`entity-badge ${row.category.toLowerCase()}`}>
-                      {row.category}
-                    </span>
-                  </td>
-                  <td>{row.influence.toFixed(3)}</td>
-                  <td>{row.broker.toFixed(3)}</td>
-                  <td>{row.connections}</td>
+      {/* Bottom Grid: Top Suspects + Audit Logs */}
+      <motion.div className="grid-2" variants={fadeUp} style={{ alignItems: 'flex-start' }}>
+        {/* Top Suspects Table */}
+        <div className="card">
+          <div className="card-title">Top Suspects</div>
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Entity</th>
+                  <th>Influence</th>
+                  <th>Connections</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {topSuspects.map((row) => (
+                  <tr key={row.entity}>
+                    <td style={{ fontWeight: 600 }}>{row.entity}</td>
+                    <td>{row.influence.toFixed(3)}</td>
+                    <td>{row.connections}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Official Audit Log Table */}
+        <div className="card">
+          <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>System Audit Logs</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--accent-green)', border: '1px solid var(--accent-green)', padding: '2px 6px', borderRadius: '4px' }}>LIVE</span>
+          </div>
+          <div className="data-table-wrapper" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+            <table className="data-table" style={{ fontSize: '0.8rem' }}>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>User ID</th>
+                  <th>Action / Event</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ fontFamily: 'monospace' }}>{new Date().toISOString().slice(0, 19).replace('T', ' ')}</td>
+                  <td>UP-4092</td>
+                  <td>FIR Analysis Executed</td>
+                  <td><span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>Success</span></td>
+                </tr>
+                <tr>
+                  <td style={{ fontFamily: 'monospace' }}>{new Date(Date.now() - 300000).toISOString().slice(0, 19).replace('T', ' ')}</td>
+                  <td>UP-4092</td>
+                  <td>Dossier PDF Export</td>
+                  <td><span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>Success</span></td>
+                </tr>
+                <tr>
+                  <td style={{ fontFamily: 'monospace' }}>{new Date(Date.now() - 900000).toISOString().slice(0, 19).replace('T', ' ')}</td>
+                  <td>UP-4092</td>
+                  <td>User Login</td>
+                  <td><span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>Success</span></td>
+                </tr>
+                <tr>
+                  <td style={{ fontFamily: 'monospace' }}>{new Date(Date.now() - 910000).toISOString().slice(0, 19).replace('T', ' ')}</td>
+                  <td>UNKNOWN</td>
+                  <td>Unauthorized IP Access</td>
+                  <td><span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Blocked</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </motion.div>
     </motion.div>

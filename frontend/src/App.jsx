@@ -8,6 +8,7 @@ import EntityIntel from './pages/EntityIntel';
 import PatternDetection from './pages/PatternDetection';
 import CaseExport from './pages/CaseExport';
 import GeoMap from './pages/GeoMap';
+import TimelineView from './pages/TimelineView';
 import TourGuide from './components/TourGuide';
 import './index.css';
 
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="/patterns" element={<PatternDetection analysisData={analysisData} />} />
             <Route path="/export" element={<CaseExport analysisData={analysisData} />} />
             <Route path="/map" element={<GeoMap analysisData={analysisData} />} />
+            <Route path="/timeline" element={<TimelineView analysisData={analysisData} />} />
           </Routes>
         </main>
       </div>

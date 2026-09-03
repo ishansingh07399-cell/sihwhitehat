@@ -6,7 +6,8 @@ import {
   HiOutlineUserGroup,
   HiOutlineShieldExclamation,
   HiOutlineDocumentDownload,
-  HiOutlineMap
+  HiOutlineMap,
+  HiOutlineClock
 } from 'react-icons/hi';
 import { Play, ShieldCheck } from 'lucide-react';
 
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/network', icon: HiOutlineGlobe, label: 'Network Analysis', id: 'tour-sidebar-network' },
   { to: '/map', icon: HiOutlineMap, label: 'Geo-Spatial Map' },
   { to: '/entities', icon: HiOutlineUserGroup, label: 'Entity Intel' },
+  { to: '/timeline', icon: HiOutlineClock, label: 'Temporal Timeline' },
   { to: '/patterns', icon: HiOutlineShieldExclamation, label: 'Pattern Detection' },
   { to: '/export', icon: HiOutlineDocumentDownload, label: 'Case Export' },
 ];

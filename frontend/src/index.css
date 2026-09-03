@@ -28,10 +28,10 @@
   --accent-red: #B50909;        /* Official Error Red */
   --accent-red-dim: rgba(181, 9, 9, 0.15);
   
-  --accent-orange: #005EA2;     
-  --accent-green: #005EA2;      
-  --accent-yellow: #005EA2;     
-  --accent-purple: #005EA2;     
+  --accent-orange: #C05600;     
+  --accent-green: #2E8540;      
+  --accent-yellow: #F9C642;     
+  --accent-purple: #6F2C91;     
 
   /* Typography */
   --text-primary: #FFFFFF;
@@ -60,8 +60,8 @@
   --radius-xl: 4px;
 
   /* Fonts */
-  --font-heading: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-heading: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-body: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'Courier New', Courier, monospace;
 
   /* Transitions */

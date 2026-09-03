@@ -12,7 +12,7 @@ const NODE_COLORS = {
   MISC: '#A9AEB1',    // Grey
 };
 
-const FILTERS = ['All', 'PERSON', 'ORG', 'LOC', 'PHONE', 'ACCOUNT'];
+const FILTERS = ['PERSON', 'ORG', 'LOC', 'PHONE', 'ACCOUNT', 'MISC'];
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -23,7 +23,15 @@ export default function NetworkGraph({ analysisData }) {
   const navigate = useNavigate();
   const data = analysisData;
 
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [filters, setFilters] = useState({
+    PERSON: true,
+    ORG: true,
+    LOC: true,
+    PHONE: true,
+    ACCOUNT: true,
+    MISC: true,
+  });
+  const [minInfluence, setMinInfluence] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedNode, setSelectedNode] = useState(null);
   const [graphDimensions, setGraphDimensions] = useState({ width: 800, height: 500 });
@@ -67,10 +75,14 @@ export default function NetworkGraph({ analysisData }) {
 
   // Build graph data with filters
   const graphData = useMemo(() => {
-    let filteredNodes = data.nodes;
+    let filteredNodes = data.nodes.filter(n => filters[n.group] !== false);
 
-    if (activeFilter !== 'All') {
-      filteredNodes = data.nodes.filter(n => n.group === activeFilter);
+    // Apply minimum influence filter if available in metrics
+    if (minInfluence > 0) {
+      filteredNodes = filteredNodes.filter(n => {
+        const metric = data.metrics.find(m => m.entity === n.id);
+        return metric ? metric.influence >= minInfluence : true;
+      });
     }
 
     if (searchTerm) {
@@ -101,7 +113,7 @@ export default function NetworkGraph({ analysisData }) {
         curvature: 0.1,
       })),
     };
-  }, [data, activeFilter, searchTerm]);
+  }, [data, filters, minInfluence, searchTerm]);
 
   useEffect(() => {
     if (graphRef.current) {
@@ -247,23 +259,44 @@ export default function NetworkGraph({ analysisData }) {
         style={{ height: 'calc(100vh - 160px)', position: 'relative' }}
       >
         {/* Toolbar */}
-        <div className="graph-toolbar">
-          {FILTERS.map(f => (
-            <button
-              key={f}
-              className={`graph-filter-btn ${activeFilter === f ? 'active' : ''}`}
-              onClick={() => setActiveFilter(f)}
-              style={f !== 'All' ? { borderColor: NODE_COLORS[f], color: activeFilter === f ? NODE_COLORS[f] : undefined } : {}}
-            >
-              {f === 'All' ? 'All Entities' : f}
-            </button>
-          ))}
+        <div className="graph-toolbar" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', padding: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {FILTERS.map(f => (
+              <button
+                key={f}
+                className={`graph-filter-btn ${filters[f] ? 'active' : ''}`}
+                onClick={() => setFilters(prev => ({ ...prev, [f]: !prev[f] }))}
+                style={{ borderColor: NODE_COLORS[f] || NODE_COLORS.MISC, color: filters[f] ? (NODE_COLORS[f] || NODE_COLORS.MISC) : undefined, opacity: filters[f] ? 1 : 0.6 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: filters[f] ? (NODE_COLORS[f] || NODE_COLORS.MISC) : 'transparent', border: `1px solid ${NODE_COLORS[f] || NODE_COLORS.MISC}` }} />
+                  {f}
+                </div>
+              </button>
+            ))}
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Min Influence:</span>
+            <input 
+              type="range" 
+              min="0" 
+              max="0.5" 
+              step="0.01" 
+              value={minInfluence}
+              onChange={(e) => setMinInfluence(parseFloat(e.target.value))}
+              style={{ width: '80px', accentColor: 'var(--accent-cyan)' }}
+            />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', width: '32px', fontFamily: 'monospace' }}>{minInfluence.toFixed(2)}</span>
+          </div>
+
           <input
             className="graph-search"
             type="text"
             placeholder="Search entities..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ marginLeft: 'auto' }}
           />
         </div>
 
@@ -360,10 +393,6 @@ export default function NetworkGraph({ analysisData }) {
           <span>— <strong style={{ color: 'var(--accent-cyan)' }}>{graphData.links.length}</strong> edges</span>
           <span style={{ width: 1, height: 16, background: 'var(--border-default)' }} />
           <span>🔴 <strong style={{ color: '#ff6b6b' }}>{graphData.links.filter(l => l.label?.includes('Predicted')).length}</strong> predicted links</span>
-          {activeFilter !== 'All' && (
-            <><span style={{ width: 1, height: 16, background: 'var(--border-default)' }} />
-            <span>Filter: <strong style={{ color: NODE_COLORS[activeFilter] }}>{activeFilter}</strong></span></>
-          )}
         </div>
 
         {}
