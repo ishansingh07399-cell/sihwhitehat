@@ -1,234 +1,1346 @@
-import { useMemo, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { ComposableMap, Geographies, Geography, Marker, Line, ZoomableGroup } from 'react-simple-maps';
-const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
-export default function GeoMap({ analysisData }) {
-  const navigate = useNavigate();
-  const data = analysisData;
-  const locations = useMemo(() => {
-    if (!data) return [];
-    const locs = data.nodes
-      .filter(n => n.group === 'LOC' && n.coordinates)
-      .map(n => ({ ...n, coordinates: [...n.coordinates] }));
-    const threshold = 2.5; 
-    const processed = new Set();
-    for (let i = 0; i < locs.length; i++) {
-        if (processed.has(i)) continue;
-        const cluster = [locs[i]];
-        processed.add(i);
-        for (let j = i + 1; j < locs.length; j++) {
-            if (processed.has(j)) continue;
-            const dx = locs[i].coordinates[0] - locs[j].coordinates[0];
-            const dy = locs[i].coordinates[1] - locs[j].coordinates[1];
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < threshold) {
-                cluster.push(locs[j]);
-                processed.add(j);
-            }
-        }
-        if (cluster.length > 1) {
-            const cx = cluster.reduce((sum, l) => sum + l.coordinates[0], 0) / cluster.length;
-            const cy = cluster.reduce((sum, l) => sum + l.coordinates[1], 0) / cluster.length;
-            const radius = Math.max(0.6, 0.4 * cluster.length);
-            cluster.forEach((l, idx) => {
-                const angle = (idx / cluster.length) * Math.PI * 2;
-                l.coordinates = [
-                    cx + Math.cos(angle) * radius,
-                    cy + Math.sin(angle) * radius
-                ];
-                l.angle = angle;
-            });
-        }
-    }
-    return locs;
-  }, [data]);
-  const isApprox = (coords) =>
-    coords && coords[0] === 78.9629 && coords[1] === 20.5937;
-  const mapCenter = useMemo(() => {
-    if (locations.length === 0) return [0, 20];
-    const preciseLocs = locations.filter(l => !isApprox(l.coordinates));
-    const locsToUse = preciseLocs.length > 0 ? preciseLocs : locations;
-    const avgLng = locsToUse.reduce((sum, l) => sum + l.coordinates[0], 0) / locsToUse.length;
-    const avgLat = locsToUse.reduce((sum, l) => sum + l.coordinates[1], 0) / locsToUse.length;
-    return [avgLng, avgLat];
-  }, [locations]);
-  const [position, setPosition] = useState({ coordinates: [0, 20], zoom: 1 });
-  useEffect(() => {
-    setPosition({
-      coordinates: mapCenter,
-      zoom: locations.length > 0 ? 12 : 1
-    });
-  }, [mapCenter, locations.length]);
-  const handleMoveEnd = (pos) => {
-    setPosition(pos);
-  };
-  if (!analysisData || locations.length === 0) {
-    const allLocNodes = analysisData?.nodes?.filter(n => n.group === 'LOC') || [];
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="page-header">
-          <h1 className="page-title">Geo-Spatial Intelligence</h1>
-          <p className="page-subtitle">Global mapping of extracted locations and entity movements</p>
-        </div>
-        <div className="card" style={{ textAlign: 'center', padding: '80px 40px' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 20 }}>🌍</div>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: 12 }}>
-            {analysisData ? 'No location entities detected' : 'No geo-data yet'}
-          </div>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 28, maxWidth: 420, margin: '0 auto 28px' }}>
-            {analysisData
-              ? allLocNodes.length > 0
-                ? `Found ${allLocNodes.length} LOC node(s) but none have coordinates. Check the API server logs.`
-                : 'The NER model did not extract any location (LOC) entities from the input text. Try including place names like cities, countries, or regions.'
-              : 'Run an analysis containing location data to see a live geo-intelligence map.'}
-          </p>
-          {!analysisData && <button className="btn btn-primary" onClick={() => navigate('/ingest')}>⚡ Run Analysis</button>}
-        </div>
-      </motion.div>
-    );
-  }
-  const connections = useMemo(() => {
-    const locIds = new Set(locations.map(l => l.id));
-    const paths = [];
-    data.nodes.filter(n => n.group === 'PERSON').forEach(person => {
-      const personEdges = data.edges.filter(e => e.source === person.id || e.target === person.id);
-      const connectedLocs = personEdges
-        .map(e => e.source === person.id ? e.target : e.source)
-        .filter(id => locIds.has(id));
-      if (connectedLocs.length > 1) {
-        for (let i = 0; i < connectedLocs.length - 1; i++) {
-          for (let j = i + 1; j < connectedLocs.length; j++) {
-            const locA = locations.find(l => l.id === connectedLocs[i]);
-            const locB = locations.find(l => l.id === connectedLocs[j]);
-            paths.push({
-              from: locA.coordinates,
-              to: locB.coordinates,
-              person: person.id
-            });
-          }
-        }
-      }
-    });
-    return paths;
-  }, [data, locations]);
-  const zoom = position.zoom;
-  return (
-    <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.1 } } }}>
-      <motion.div className="page-header" variants={fadeUp}>
-        <h1 className="page-title">Geo-Spatial Intelligence</h1>
-        <p className="page-subtitle">Global mapping of extracted locations and entity movements</p>
-      </motion.div>
-      <motion.div className="card" variants={fadeUp} style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 10, background: 'var(--bg-card)', padding: '10px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 8, fontFamily: 'var(--font-heading)', textTransform: 'uppercase', letterSpacing: '1px' }}>Legend</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-cyan)' }} />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>Extracted Location</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <div style={{ width: 14, height: 2, background: 'var(--text-muted)' }} />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>Entity Travel</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'transparent', border: '2px dashed var(--text-muted)' }} />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Approx. Location</span>
-          </div>
-        </div>
-        <ComposableMap projection="geoMercator" projectionConfig={{ scale: 120 }} style={{ width: '100%', height: 'calc(100vh - 200px)', background: 'transparent' }}>
-          <ZoomableGroup 
-            center={position.coordinates} 
-            zoom={position.zoom} 
-            minZoom={1} 
-            maxZoom={100}
-            onMoveEnd={handleMoveEnd}
-          >
-            <Geographies geography={geoUrl}>
-              {({ geographies }) =>
-                geographies.map((geo) => (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill="var(--bg-primary)"
-                    stroke="var(--text-muted)"
-                    strokeWidth={1.2 / zoom}
-                    style={{
-                      default: { outline: 'none' },
-                      hover: { fill: 'var(--bg-card-hover)', outline: 'none' },
-                      pressed: { outline: 'none' },
-                    }}
-                  />
-                ))
-              }
-            </Geographies>
-            {connections.map((path, i) => (
-              <Line
-                key={i}
-                from={path.from}
-                to={path.to}
-                stroke="var(--text-muted)"
-                strokeWidth={1.5 / zoom}
-                strokeLinecap="round"
-                style={{ opacity: 0.6 }}
-              />
-            ))}
-            {locations.map((loc) => {
-              let textAnchor = "middle";
-              let dx = 0;
-              let dy = -24 / zoom;
-              if (loc.angle !== undefined) {
-                  let deg = (loc.angle * 180) / Math.PI;
-                  if (deg > 315 || deg <= 45) { 
-                      textAnchor = "start";
-                      dx = 16 / zoom;
-                      dy = 6 / zoom;
-                  } else if (deg > 45 && deg <= 135) { 
-                      textAnchor = "middle";
-                      dx = 0;
-                      dy = -24 / zoom;
-                  } else if (deg > 135 && deg <= 225) { 
-                      textAnchor = "end";
-                      dx = -16 / zoom;
-                      dy = 6 / zoom;
-                  } else { 
-                      textAnchor = "middle";
-                      dx = 0;
-                      dy = 28 / zoom;
-                  }
-              }
-              return (
-              <Marker key={loc.id} coordinates={loc.coordinates}>
-                <circle
-                  r={12 / zoom}
-                  fill={isApprox(loc.coordinates) ? 'transparent' : 'var(--accent-cyan)'}
-                  stroke={isApprox(loc.coordinates) ? 'var(--text-muted)' : 'none'}
-                  strokeWidth={isApprox(loc.coordinates) ? 4.5 / zoom : 0}
-                  strokeDasharray={isApprox(loc.coordinates) ? `${12 / zoom},${12 / zoom}` : 'none'}
-                />
-                <text
-                  textAnchor={textAnchor}
-                  dx={dx}
-                  y={dy}
-                  style={{ 
-                    fontFamily: 'var(--font-heading)', 
-                    fill: 'var(--text-primary)', 
-                    fontSize: `${24 / zoom}px`, 
-                    letterSpacing: `${1.2 / zoom}px`,
-                    pointerEvents: 'none',
-                    textShadow: `0 2px 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.9)` 
-                  }}
-                >
-                  {loc.id}{isApprox(loc.coordinates) ? ' ~' : ''}
-                </text>
-              </Marker>
-            )})}
-          </ZoomableGroup>
-        </ComposableMap>
-      </motion.div>
-    </motion.div>
-  );
+import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  Line,
+  ZoomableGroup,
+} from "react-simple-maps";
+
+const geoUrl = "/india-composite.geojson";
+
+const INDIA_CENTER = [78.9629, 22.5937];
+const DEFAULT_ZOOM = 4.2;
+
+const fadeUp = {
+  hidden: {
+    opacity: 0,
+    y: 18,
+  },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.45,
+    },
+  },
+};
+
+/* =========================================================
+   COORDINATE HELPERS
+========================================================= */
+
+function isValidCoordinate(coords) {
+  if (!Array.isArray(coords) || coords.length < 2) {
+    return false;
+  }
+
+  const lng = Number(coords[0]);
+  const lat = Number(coords[1]);
+
+  return (
+    Number.isFinite(lng) &&
+    Number.isFinite(lat) &&
+    lng >= 60 &&
+    lng <= 105 &&
+    lat >= 0 &&
+    lat <= 40
+  );
+}
+
+function normalizeCoordinates(coords) {
+  return [
+    Number(coords[0]),
+    Number(coords[1]),
+  ];
+}
+
+/* =========================================================
+   MAP VIEW CALCULATOR
+========================================================= */
+
+function calculateMapView(locations) {
+  if (!locations || locations.length === 0) {
+    return {
+      coordinates: INDIA_CENTER,
+      zoom: DEFAULT_ZOOM,
+    };
+  }
+
+  const lngs = locations.map(
+    (location) => location.coordinates[0]
+  );
+
+  const lats = locations.map(
+    (location) => location.coordinates[1]
+  );
+
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+
+  const centerLng = (minLng + maxLng) / 2;
+  const centerLat = (minLat + maxLat) / 2;
+
+  const lngSpan = Math.max(maxLng - minLng, 2);
+  const latSpan = Math.max(maxLat - minLat, 2);
+
+  const span = Math.max(lngSpan, latSpan);
+
+  let zoom = 4.5;
+
+  if (span < 2.5) {
+    zoom = 7.5;
+  } else if (span < 5) {
+    zoom = 6.5;
+  } else if (span < 10) {
+    zoom = 5.8;
+  } else if (span < 18) {
+    zoom = 5.1;
+  } else {
+    zoom = 4.5;
+  }
+
+  return {
+    coordinates: [
+      centerLng,
+      centerLat,
+    ],
+    zoom,
+  };
+}
+
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
+
+export default function GeoMap({ analysisData }) {
+  const navigate = useNavigate();
+
+  const data = analysisData || {
+    nodes: [],
+    edges: [],
+  };
+
+  /* -------------------------------------------------------
+     Extract locations
+  ------------------------------------------------------- */
+
+  const locations = useMemo(() => {
+    const nodes = Array.isArray(data.nodes)
+      ? data.nodes
+      : [];
+
+    return nodes
+      .filter((node) => {
+        if (!node) return false;
+
+        const isLocation =
+          node.group === "LOC" ||
+          node.type === "LOC" ||
+          node.entity_type === "LOC";
+
+        return (
+          isLocation &&
+          isValidCoordinate(node.coordinates)
+        );
+      })
+      .map((node) => ({
+        ...node,
+        coordinates: normalizeCoordinates(
+          node.coordinates
+        ),
+      }));
+  }, [data]);
+
+  /* -------------------------------------------------------
+     Stable calculated initial view
+     
+     IMPORTANT:
+     No useEffect + setState loop here.
+  ------------------------------------------------------- */
+
+  const calculatedView = useMemo(
+    () => calculateMapView(locations),
+    [locations]
+  );
+
+  const [position, setPosition] = useState(
+    calculatedView
+  );
+
+  const [selectedLocation, setSelectedLocation] =
+    useState(null);
+
+  /* -------------------------------------------------------
+     Statistics
+  ------------------------------------------------------- */
+
+  const locationStats = useMemo(() => {
+    let approximate = 0;
+
+    locations.forEach((location) => {
+      if (
+        location.approximate === true ||
+        location.isApproximate === true
+      ) {
+        approximate++;
+      }
+    });
+
+    return {
+      total: locations.length,
+      exact: locations.length - approximate,
+      approximate,
+    };
+  }, [locations]);
+
+  /* =========================================================
+     ENTITY → LOCATION CONNECTIONS
+  ========================================================= */
+
+  const connections = useMemo(() => {
+    const nodes = Array.isArray(data.nodes)
+      ? data.nodes
+      : [];
+
+    const edges = Array.isArray(data.edges)
+      ? data.edges
+      : [];
+
+    const locationIds = new Set(
+      locations.map((location) => location.id)
+    );
+
+    const paths = [];
+    const seen = new Set();
+
+    const people = nodes.filter((node) => {
+      return (
+        node &&
+        (
+          node.group === "PERSON" ||
+          node.type === "PERSON" ||
+          node.entity_type === "PERSON"
+        )
+      );
+    });
+
+    people.forEach((person) => {
+      const relatedLocations = [];
+
+      edges.forEach((edge) => {
+        if (!edge) return;
+
+        if (
+          edge.source === person.id &&
+          locationIds.has(edge.target)
+        ) {
+          relatedLocations.push(edge.target);
+        }
+
+        if (
+          edge.target === person.id &&
+          locationIds.has(edge.source)
+        ) {
+          relatedLocations.push(edge.source);
+        }
+      });
+
+      const uniqueLocations = [
+        ...new Set(relatedLocations),
+      ];
+
+      for (
+        let i = 0;
+        i < uniqueLocations.length;
+        i++
+      ) {
+        for (
+          let j = i + 1;
+          j < uniqueLocations.length;
+          j++
+        ) {
+          const locationA = locations.find(
+            (location) =>
+              location.id === uniqueLocations[i]
+          );
+
+          const locationB = locations.find(
+            (location) =>
+              location.id === uniqueLocations[j]
+          );
+
+          if (!locationA || !locationB) {
+            continue;
+          }
+
+          const key =
+            `${person.id}-${locationA.id}-${locationB.id}`;
+
+          if (seen.has(key)) {
+            continue;
+          }
+
+          seen.add(key);
+
+          paths.push({
+            from: locationA.coordinates,
+            to: locationB.coordinates,
+            person: person.id,
+          });
+        }
+      }
+    });
+
+    return paths;
+  }, [data, locations]);
+
+  /* =========================================================
+     MAP CONTROLS
+  ========================================================= */
+
+  const handleMoveEnd = (newPosition) => {
+    if (!newPosition) return;
+
+    setPosition({
+      coordinates:
+        Array.isArray(newPosition.coordinates)
+          ? newPosition.coordinates
+          : INDIA_CENTER,
+
+      zoom:
+        Number.isFinite(newPosition.zoom)
+          ? newPosition.zoom
+          : DEFAULT_ZOOM,
+    });
+  };
+
+  const zoomIn = () => {
+    setPosition((previous) => ({
+      ...previous,
+      zoom: Math.min(
+        previous.zoom * 1.35,
+        12
+      ),
+    }));
+  };
+
+  const zoomOut = () => {
+    setPosition((previous) => ({
+      ...previous,
+      zoom: Math.max(
+        previous.zoom / 1.35,
+        1.8
+      ),
+    }));
+  };
+
+  const resetView = () => {
+    setPosition(calculateMapView(locations));
+    setSelectedLocation(null);
+  };
+
+  /* =========================================================
+     EMPTY STATE
+  ========================================================= */
+
+  if (
+    !analysisData ||
+    locations.length === 0
+  ) {
+    const allLocationNodes =
+      analysisData?.nodes?.filter(
+        (node) =>
+          node?.group === "LOC" ||
+          node?.type === "LOC" ||
+          node?.entity_type === "LOC"
+      ) || [];
+
+    return (
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={{
+          show: {
+            transition: {
+              staggerChildren: 0.08,
+            },
+          },
+        }}
+      >
+        <motion.div
+          className="page-header"
+          variants={fadeUp}
+        >
+          <h1 className="page-title">
+            Geo-Spatial Intelligence
+          </h1>
+
+          <p className="page-subtitle">
+            Geographic intelligence layer for
+            extracted locations and movements
+          </p>
+        </motion.div>
+
+        <motion.div
+          variants={fadeUp}
+          className="card"
+          style={{
+            padding: "70px 40px",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "3.5rem",
+              marginBottom: "18px",
+            }}
+          >
+            ◉
+          </div>
+
+          <h2
+            style={{
+              fontFamily:
+                "var(--font-heading)",
+              color:
+                "var(--text-primary)",
+              marginBottom: "10px",
+            }}
+          >
+            {analysisData
+              ? "No mappable locations detected"
+              : "No geo-intelligence available"}
+          </h2>
+
+          <p
+            style={{
+              color:
+                "var(--text-secondary)",
+              maxWidth: "520px",
+              margin:
+                "0 auto 26px",
+              lineHeight: 1.7,
+            }}
+          >
+            {analysisData
+              ? allLocationNodes.length > 0
+                ? `Found ${allLocationNodes.length} location node(s), but valid coordinates are unavailable.`
+                : "No LOC entities were extracted from the intelligence input."
+              : "Run an investigation containing location information to activate the geo-spatial intelligence layer."}
+          </p>
+
+          {!analysisData && (
+            <button
+              className="btn btn-primary"
+              onClick={() =>
+                navigate("/ingest")
+              }
+            >
+              ⚡ Run Analysis
+            </button>
+          )}
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  /* =========================================================
+     MAIN MAP
+  ========================================================= */
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={{
+        show: {
+          transition: {
+            staggerChildren: 0.08,
+          },
+        },
+      }}
+    >
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
+      <motion.div
+        className="page-header"
+        variants={fadeUp}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems:
+              "flex-end",
+            gap: 20,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems:
+                  "center",
+                gap: 10,
+                marginBottom: 8,
+              }}
+            >
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background:
+                    "var(--accent-cyan)",
+                  boxShadow:
+                    "0 0 14px var(--accent-cyan)",
+                }}
+              />
+
+              <span
+                style={{
+                  fontSize:
+                    "0.72rem",
+                  letterSpacing:
+                    "2px",
+                  fontFamily:
+                    "var(--font-heading)",
+                  color:
+                    "var(--accent-cyan)",
+                  textTransform:
+                    "uppercase",
+                }}
+              >
+                Live Intelligence Layer
+              </span>
+            </div>
+
+            <h1 className="page-title">
+              Geo-Spatial Intelligence
+            </h1>
+
+            <p className="page-subtitle">
+              Geographic mapping of extracted
+              entities, movements and
+              investigation points
+            </p>
+          </div>
+
+          {/* STATS */}
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <GeoStat
+              value={
+                locationStats.total
+              }
+              label="LOCATIONS"
+            />
+
+            <GeoStat
+              value={
+                locationStats.exact
+              }
+              label="VERIFIED"
+            />
+
+            <GeoStat
+              value={
+                locationStats.approximate
+              }
+              label="APPROX."
+            />
+
+            <GeoStat
+              value={
+                connections.length
+              }
+              label="ROUTES"
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* =====================================================
+          MAP CARD
+      ===================================================== */}
+
+      <motion.div
+        variants={fadeUp}
+        className="card"
+        style={{
+          padding: 0,
+          overflow: "hidden",
+          position: "relative",
+          minHeight:
+            "620px",
+        }}
+      >
+        {/* ===================================================
+            TOP OVERLAY
+        =================================================== */}
+
+        <div
+          style={{
+            position:
+              "absolute",
+            top: 18,
+            left: 18,
+            right: 18,
+            zIndex: 20,
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems:
+              "flex-start",
+            pointerEvents:
+              "none",
+          }}
+        >
+          {/* LEGEND */}
+
+          <div
+            style={{
+              pointerEvents:
+                "auto",
+              background:
+                "rgba(8, 12, 18, 0.92)",
+              backdropFilter:
+                "blur(12px)",
+              border:
+                "1px solid var(--border-default)",
+              borderRadius:
+                "12px",
+              padding:
+                "14px 16px",
+              minWidth:
+                "225px",
+            }}
+          >
+            <div
+              style={{
+                fontSize:
+                  "0.68rem",
+                color:
+                  "var(--text-muted)",
+                letterSpacing:
+                  "1.5px",
+                fontFamily:
+                  "var(--font-heading)",
+                marginBottom:
+                  12,
+              }}
+            >
+              INTELLIGENCE LEGEND
+            </div>
+
+            <LegendItem
+              type="location"
+              label="Extracted Location"
+            />
+
+            <LegendItem
+              type="route"
+              label="Entity Movement"
+            />
+
+            <LegendItem
+              type="approx"
+              label="Approximate Position"
+            />
+          </div>
+
+          {/* MAP CONTROLS */}
+
+          <div
+            style={{
+              pointerEvents:
+                "auto",
+              display: "flex",
+              flexDirection:
+                "column",
+              gap: 6,
+            }}
+          >
+            <MapButton
+              onClick={zoomIn}
+            >
+              +
+            </MapButton>
+
+            <MapButton
+              onClick={zoomOut}
+            >
+              −
+            </MapButton>
+
+            <MapButton
+              onClick={resetView}
+            >
+              ⌖
+            </MapButton>
+          </div>
+        </div>
+
+        {/* ===================================================
+            SELECTED LOCATION
+        =================================================== */}
+
+        {selectedLocation && (
+          <div
+            style={{
+              position:
+                "absolute",
+              left: 18,
+              bottom: 18,
+              zIndex: 30,
+              background:
+                "rgba(8, 12, 18, 0.95)",
+              backdropFilter:
+                "blur(14px)",
+              border:
+                "1px solid var(--accent-cyan)",
+              borderRadius:
+                "12px",
+              padding:
+                "16px 18px",
+              minWidth:
+                "265px",
+              boxShadow:
+                "0 12px 45px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              style={{
+                fontSize:
+                  "0.65rem",
+                color:
+                  "var(--accent-cyan)",
+                letterSpacing:
+                  "1.5px",
+                fontFamily:
+                  "var(--font-heading)",
+                marginBottom:
+                  8,
+              }}
+            >
+              SELECTED LOCATION
+            </div>
+
+            <div
+              style={{
+                color:
+                  "var(--text-primary)",
+                fontFamily:
+                  "var(--font-heading)",
+                fontSize:
+                  "1rem",
+                marginBottom:
+                  8,
+              }}
+            >
+              {selectedLocation.id}
+            </div>
+
+            <div
+              style={{
+                color:
+                  "var(--text-secondary)",
+                fontSize:
+                  "0.76rem",
+                lineHeight:
+                  1.7,
+              }}
+            >
+              LAT{" "}
+              <strong>
+                {selectedLocation
+                  .coordinates[1]
+                  .toFixed(4)}
+              </strong>
+
+              <br />
+
+              LNG{" "}
+              <strong>
+                {selectedLocation
+                  .coordinates[0]
+                  .toFixed(4)}
+              </strong>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedLocation(
+                  null
+                )
+              }
+              style={{
+                marginTop: 10,
+                border: "none",
+                background:
+                  "transparent",
+                color:
+                  "var(--text-muted)",
+                cursor:
+                  "pointer",
+                fontSize:
+                  "0.7rem",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* ===================================================
+            MAP
+        =================================================== */}
+
+        <ComposableMap
+          projection="geoMercator"
+          projectionConfig={{
+            scale: 650,
+          }}
+          style={{
+            width: "100%",
+            height: "650px",
+            background:
+              "radial-gradient(circle at 50% 45%, rgba(25,55,70,0.16), transparent 55%)",
+          }}
+        >
+          <ZoomableGroup
+            center={
+              position.coordinates
+            }
+            zoom={
+              position.zoom
+            }
+            minZoom={1.8}
+            maxZoom={12}
+            onMoveEnd={
+              handleMoveEnd
+            }
+          >
+            {/* =================================================
+                INDIA GEOMETRY
+            ================================================= */}
+
+            <Geographies
+              geography={geoUrl}
+            >
+              {({
+                geographies,
+              }) =>
+                geographies.map(
+                  (geo) => (
+                    <Geography
+                      key={
+                        geo.rsmKey
+                      }
+                      geography={
+                        geo
+                      }
+                      fill="rgba(20, 29, 36, 0.96)"
+                      stroke="rgba(130, 150, 160, 0.55)"
+                      strokeWidth={
+                        0.7 /
+                        position.zoom
+                      }
+                      style={{
+                        default: {
+                          outline:
+                            "none",
+                        },
+
+                        hover: {
+                          fill:
+                            "rgba(34, 52, 61, 1)",
+                          outline:
+                            "none",
+                        },
+
+                        pressed: {
+                          fill:
+                            "rgba(40, 60, 68, 1)",
+                          outline:
+                            "none",
+                        },
+                      }}
+                    />
+                  )
+                )
+              }
+            </Geographies>
+
+            {/* =================================================
+                ENTITY MOVEMENT ROUTES
+            ================================================= */}
+
+            {connections.map(
+              (
+                connection,
+                index
+              ) => (
+                <Line
+                  key={`${connection.person}-${index}`}
+                  from={
+                    connection.from
+                  }
+                  to={
+                    connection.to
+                  }
+                  stroke="rgba(0, 220, 255, 0.48)"
+                  strokeWidth={
+                    1.4 /
+                    position.zoom
+                  }
+                  strokeLinecap="round"
+                  strokeDasharray="5 4"
+                  style={{
+                    opacity:
+                      0.75,
+                  }}
+                />
+              )
+            )}
+
+            {/* =================================================
+                LOCATION MARKERS
+            ================================================= */}
+
+            {locations.map(
+              (location) => {
+                const approximate =
+                  location.approximate ===
+                    true ||
+                  location.isApproximate ===
+                    true;
+
+                const selected =
+                  selectedLocation?.id ===
+                  location.id;
+
+                return (
+                  <Marker
+                    key={
+                      location.id
+                    }
+                    coordinates={
+                      location.coordinates
+                    }
+                    onClick={() =>
+                      setSelectedLocation(
+                        location
+                      )
+                    }
+                  >
+                    {/* OUTER RING */}
+
+                    {!approximate && (
+                      <circle
+                        r={
+                          16 /
+                          position.zoom
+                        }
+                        fill="none"
+                        stroke="rgba(0,220,255,0.22)"
+                        strokeWidth={
+                          1.5 /
+                          position.zoom
+                        }
+                      />
+                    )}
+
+                    {/* MAIN NODE */}
+
+                    <circle
+                      r={
+                        7.5 /
+                        position.zoom
+                      }
+                      fill={
+                        approximate
+                          ? "transparent"
+                          : "var(--accent-cyan)"
+                      }
+                      stroke={
+                        approximate
+                          ? "rgba(170,180,190,0.9)"
+                          : selected
+                          ? "#ffffff"
+                          : "rgba(0,220,255,0.9)"
+                      }
+                      strokeWidth={
+                        selected
+                          ? 2.5 /
+                            position.zoom
+                          : 1.5 /
+                            position.zoom
+                      }
+                      strokeDasharray={
+                        approximate
+                          ? `${
+                              4 /
+                              position.zoom
+                            },${
+                              3 /
+                              position.zoom
+                            }`
+                          : "none"
+                      }
+                      style={{
+                        cursor:
+                          "pointer",
+                        filter:
+                          "drop-shadow(0 0 5px rgba(0,220,255,0.55))",
+                      }}
+                    />
+
+                    {/* CORE */}
+
+                    {!approximate && (
+                      <circle
+                        r={
+                          2.2 /
+                          position.zoom
+                        }
+                        fill="#ffffff"
+                        pointerEvents="none"
+                      />
+                    )}
+
+                    {/* LABEL */}
+
+                    <text
+                      x={0}
+                      y={
+                        -18 /
+                        position.zoom
+                      }
+                      textAnchor="middle"
+                      pointerEvents="none"
+                      style={{
+                        fill:
+                          "var(--text-primary)",
+                        fontFamily:
+                          "var(--font-heading)",
+                        fontSize:
+                          `${
+                            11 /
+                            Math.sqrt(
+                              position.zoom
+                            )
+                          }px`,
+                        fontWeight: 600,
+                        letterSpacing:
+                          `${
+                            0.7 /
+                            position.zoom
+                          }px`,
+                        paintOrder:
+                          "stroke",
+                        stroke:
+                          "rgba(5,9,13,0.95)",
+                        strokeWidth:
+                          `${
+                            3 /
+                            position.zoom
+                          }px`,
+                        strokeLinecap:
+                          "round",
+                        strokeLinejoin:
+                          "round",
+                      }}
+                    >
+                      {location.id}
+                    </text>
+                  </Marker>
+                );
+              }
+            )}
+          </ZoomableGroup>
+        </ComposableMap>
+
+        {/* ===================================================
+            BOTTOM STATUS
+        =================================================== */}
+
+        <div
+          style={{
+            position:
+              "absolute",
+            left: 18,
+            right: 18,
+            bottom: 18,
+            zIndex: 10,
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems:
+              "center",
+            gap: 15,
+            flexWrap: "wrap",
+            pointerEvents:
+              "none",
+          }}
+        >
+          <div
+            style={{
+              background:
+                "rgba(8,12,18,0.88)",
+              backdropFilter:
+                "blur(10px)",
+              border:
+                "1px solid var(--border-default)",
+              borderRadius:
+                "9px",
+              padding:
+                "9px 13px",
+              fontSize:
+                "0.68rem",
+              color:
+                "var(--text-secondary)",
+              fontFamily:
+                "var(--font-heading)",
+            }}
+          >
+            MAP STATUS{" "}
+            <span
+              style={{
+                color:
+                  "var(--accent-cyan)",
+              }}
+            >
+              ● LIVE
+            </span>
+          </div>
+
+          <div
+            style={{
+              background:
+                "rgba(8,12,18,0.88)",
+              backdropFilter:
+                "blur(10px)",
+              border:
+                "1px solid var(--border-default)",
+              borderRadius:
+                "9px",
+              padding:
+                "9px 13px",
+              fontSize:
+                "0.68rem",
+              color:
+                "var(--text-muted)",
+              fontFamily:
+                "var(--font-heading)",
+            }}
+          >
+            ZOOM{" "}
+            {position.zoom.toFixed(
+              1
+            )}
+            ×
+          </div>
+        </div>
+
+        {/* ===================================================
+            LOCAL STYLES
+        =================================================== */}
+
+        <style>{`
+          .geo-stat {
+            min-width: 82px;
+            padding: 10px 13px;
+            border: 1px solid var(--border-default);
+            background: var(--bg-card);
+            border-radius: 9px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+
+          .geo-stat span {
+            color: var(--text-primary);
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            line-height: 1;
+          }
+
+          .geo-stat small {
+            color: var(--text-muted);
+            font-size: 0.58rem;
+            letter-spacing: 1px;
+            font-family: var(--font-heading);
+          }
+        `}</style>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* =========================================================
+   GEO STAT
+========================================================= */
+
+function GeoStat({
+  value,
+  label,
+}) {
+  return (
+    <div className="geo-stat">
+      <span>{value}</span>
+
+      <small>{label}</small>
+    </div>
+  );
+}
+
+/* =========================================================
+   LEGEND
+========================================================= */
+
+function LegendItem({
+  type,
+  label,
+}) {
+  let visual = null;
+
+  if (type === "location") {
+    visual = (
+      <span
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          background:
+            "var(--accent-cyan)",
+          boxShadow:
+            "0 0 8px rgba(0,220,255,0.7)",
+        }}
+      />
+    );
+  }
+
+  if (type === "route") {
+    visual = (
+      <span
+        style={{
+          width: 20,
+          height: 0,
+          borderTop:
+            "1px dashed rgba(0,220,255,0.7)",
+        }}
+      />
+    );
+  }
+
+  if (type === "approx") {
+    visual = (
+      <span
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          border:
+            "1.5px dashed rgba(170,180,190,0.9)",
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems:
+          "center",
+        gap: 9,
+        marginBottom: 8,
+      }}
+    >
+      {visual}
+
+      <span
+        style={{
+          fontSize:
+            "0.68rem",
+          color:
+            "var(--text-secondary)",
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* =========================================================
+   MAP BUTTON
+========================================================= */
+
+function MapButton({
+  children,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 8,
+        border:
+          "1px solid var(--border-default)",
+        background:
+          "rgba(8,12,18,0.92)",
+        backdropFilter:
+          "blur(10px)",
+        color:
+          "var(--text-primary)",
+        cursor:
+          "pointer",
+        fontFamily:
+          "var(--font-heading)",
+        fontSize:
+          "1rem",
+        transition:
+          "all 0.2s ease",
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.borderColor =
+          "var(--accent-cyan)";
+
+        event.currentTarget.style.color =
+          "var(--accent-cyan)";
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.borderColor =
+          "var(--border-default)";
+
+        event.currentTarget.style.color =
+          "var(--text-primary)";
+      }}
+    >
+      {children}
+    </button>
+  );
 }
