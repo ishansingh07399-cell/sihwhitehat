@@ -42,19 +42,42 @@ from geopy.exc import GeocoderTimedOut
 geolocator = Nominatim(user_agent="criminal_intel_app")
 
 @functools.lru_cache(maxsize=1024)
+def get_location_info(location_name):
+    """Geocode location and return coords + country name."""
+    # Try the exact name, then progressively simpler forms
+    candidates = [location_name.strip()]
+    # Strip common suffixes like "Jail", "Prison", "Central" to improve geocoding
+    simplified = location_name.strip()
+    for suffix in [' Jail', ' Prison', ' Central', ' District', ' City']:
+        if simplified.lower().endswith(suffix.lower()):
+            simplified = simplified[:len(simplified)-len(suffix)].strip()
+            candidates.append(simplified)
+            break
+    # Also try first word if multi-word
+    words = location_name.strip().split()
+    if len(words) > 1:
+        candidates.append(words[0])
+
+    for name in candidates:
+        try:
+            loc = geolocator.geocode(name, timeout=5, addressdetails=True, language='en')
+            if loc:
+                country = ""
+                if hasattr(loc, 'raw') and loc.raw.get('address'):
+                    country = loc.raw['address'].get('country', '')
+                return {
+                    "coordinates": [loc.longitude, loc.latitude],
+                    "country": country
+                }
+        except Exception:
+            pass
+
+    # Fallback to center of India
+    return {"coordinates": [78.9629, 20.5937], "country": "India"}
+
+# Keep backward-compat alias
 def get_coordinates(location_name):
-    """Dynamically geocode location using Geopy API."""
-    name_lower = location_name.lower().strip()
-    try:
-        location = geolocator.geocode(name_lower, timeout=5)
-        if location:
-            # Geopy returns (latitude, longitude) but React-Simple-Maps needs [longitude, latitude]
-            return [location.longitude, location.latitude]
-    except Exception:
-        pass
-    
-    # Fallback to center of India if geocoding fails
-    return [78.9629, 20.5937]
+    return get_location_info(location_name)["coordinates"]
 
 
 @app.post("/api/analyze")
@@ -205,9 +228,9 @@ async def analyze_data(
         }
         
         if group == 'LOC':
-            coords = get_coordinates(node)
-            if coords:
-                node_entry["coordinates"] = coords
+            loc_info = get_location_info(node)
+            node_entry["coordinates"] = loc_info["coordinates"]
+            node_entry["country"] = loc_info.get("country", "")
         nodes_data.append(node_entry)
         
     edges_data = []
