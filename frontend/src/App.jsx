@@ -6,7 +6,8 @@ import DataIngestion from './pages/DataIngestion';
 import NetworkGraph from './pages/NetworkGraph';
 import EntityIntel from './pages/EntityIntel';
 import PatternDetection from './pages/PatternDetection';
-import CaseExport from './pages/CaseExport';
+import CaseExport from './pages/CaseExport';
+import PrimeSuspect from './pages/PrimeSuspect';
 import GeoMap from './pages/GeoMap';
 import TimelineView from './pages/TimelineView';
 import TourGuide from './components/TourGuide';
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/network" element={<NetworkGraph analysisData={analysisData} />} />
             <Route path="/entities" element={<EntityIntel analysisData={analysisData} />} />
             <Route path="/patterns" element={<PatternDetection analysisData={analysisData} />} />
+            <Route path="/suspect" element={<PrimeSuspect analysisData={analysisData} />} />
             <Route path="/export" element={<CaseExport analysisData={analysisData} />} />
             <Route path="/map" element={<GeoMap analysisData={analysisData} />} />
             <Route path="/timeline" element={<TimelineView analysisData={analysisData} />} />

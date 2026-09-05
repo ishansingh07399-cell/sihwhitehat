@@ -9,7 +9,8 @@ import {
   HiOutlineShieldExclamation,
   HiOutlineDocumentDownload,
   HiOutlineMap,
-  HiOutlineClock
+  HiOutlineClock,
+  HiOutlineUser
 } from 'react-icons/hi';
 
 import {
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/entities', icon: HiOutlineUserGroup, label: 'Entity Intel' },
   { to: '/timeline', icon: HiOutlineClock, label: 'Temporal Timeline' },
   { to: '/patterns', icon: HiOutlineShieldExclamation, label: 'Pattern Detection' },
+  { to: '/suspect', icon: HiOutlineUser, label: 'Prime Suspect' },
   { to: '/export', icon: HiOutlineDocumentDownload, label: 'Case Export' },
 ];
 

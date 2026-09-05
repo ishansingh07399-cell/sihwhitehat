@@ -45,7 +45,7 @@ export default function CaseExport({ analysisData }) {
     pdf.line(14, 44, 196, 44);
     pdf.setFontSize(10);
     pdf.setTextColor(60, 60, 60);
-    const introText = `This AI-powered system analyzes structured and unstructured crime-related data to uncover criminal networks, identify key influencers, detect suspicious patterns, and provide actionable intelligence. Total entities: ${data.summary.total_entities} | Connections: ${data.summary.total_edges} | Alerts: ${data.summary.alerts_count}`;
+    const introText = `Total entities: ${data.summary.total_entities} | Connections: ${data.summary.total_edges} | Alerts: ${data.summary.alerts_count}`;
     pdf.text(introText, 14, 52, { maxWidth: 180 });
     pdf.setFontSize(13);
     pdf.setTextColor(0, 0, 0);
@@ -120,6 +120,100 @@ export default function CaseExport({ analysisData }) {
       pdf.text(hash, 14, y);
       y += 8;
     });
+    // ─── PRIME SUSPECT ASSESSMENT ──────────────────────────────────────────
+    if (y > 220) { pdf.addPage(); y = 20; }
+    pdf.setFontSize(13);
+    pdf.setTextColor(180, 0, 0);
+    pdf.text('5. Prime Suspect Assessment', 14, y);
+    pdf.setDrawColor(180, 0, 0);
+    pdf.line(14, y + 2, 196, y + 2);
+    y += 10;
+
+    // Determine prime suspect — highest influence PERSON node
+    const personMetrics = data.metrics.filter(m => m.category === 'PERSON');
+    const primeSuspect = personMetrics.length > 0
+      ? personMetrics.reduce((a, b) => a.influence > b.influence ? a : b)
+      : null;
+
+    if (primeSuspect) {
+      // Name banner
+      pdf.setFontSize(14);
+      pdf.setTextColor(100, 0, 0);
+      pdf.text(`⚠  ${primeSuspect.entity}`, 14, y);
+      y += 8;
+
+      // Score row
+      pdf.setFontSize(9);
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(
+        `Network Influence Score: ${primeSuspect.influence.toFixed(4)}   |   ` +
+        `Broker/Hub Score: ${primeSuspect.broker.toFixed(4)}   |   ` +
+        `Direct Connections: ${primeSuspect.connections}`,
+        14, y, { maxWidth: 180 }
+      );
+      y += 10;
+
+      // Associated locations
+      const suspectEdges = data.edges.filter(e =>
+        e.source === primeSuspect.entity || e.target === primeSuspect.entity
+      );
+      const connectedIds = suspectEdges.map(e =>
+        e.source === primeSuspect.entity ? e.target : e.source
+      );
+      const linkedLocs = data.nodes
+        .filter(n => n.group === 'LOC' && connectedIds.includes(n.id))
+        .map(n => n.id);
+      if (linkedLocs.length > 0) {
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(`Linked Locations: ${linkedLocs.join(', ')}`, 14, y, { maxWidth: 180 });
+        y += 8;
+      }
+
+      // Connected persons
+      const linkedPersons = data.nodes
+        .filter(n => n.group === 'PERSON' && connectedIds.includes(n.id) && n.id !== primeSuspect.entity)
+        .map(n => n.id);
+      if (linkedPersons.length > 0) {
+        pdf.text(`Associated Persons: ${linkedPersons.join(', ')}`, 14, y, { maxWidth: 180 });
+        y += 10;
+      }
+
+      // AI Reasoning paragraph
+      pdf.setFontSize(10);
+      pdf.setTextColor(40, 40, 40);
+      const isSmurfing = data.alerts.smurfing.length > 0;
+      const isPrimaryAlert = data.alerts.primary_suspect === primeSuspect.entity;
+      const reasoning =
+        `${primeSuspect.entity} has been identified as the prime suspect based on AI-driven graph analysis. ` +
+        `With a PageRank influence score of ${primeSuspect.influence.toFixed(4)} — the highest among all persons in this case — ` +
+        `this individual occupies a central position in the criminal network. ` +
+        (primeSuspect.broker > 0.1
+          ? `A broker score of ${primeSuspect.broker.toFixed(4)} further indicates that they act as a key bridge between separate factions, ` +
+            `controlling information and resource flow across ${primeSuspect.connections} direct connections. `
+          : `They maintain ${primeSuspect.connections} direct connections within the network. `) +
+        (linkedLocs.length > 0
+          ? `Operational activity has been traced to: ${linkedLocs.join(', ')}. `
+          : '') +
+        (linkedPersons.length > 0
+          ? `Known associates include: ${linkedPersons.join(', ')}. `
+          : '') +
+        (isPrimaryAlert ? 'Flagged as primary suspect by PageRank algorithmic detection. ' : '') +
+        (isSmurfing ? 'Financial smurfing activity has been detected in the network, consistent with structured money-laundering operations. ' : '') +
+        'Immediate surveillance and further investigation of this individual is strongly recommended.';
+
+      const splitReasoning = pdf.splitTextToSize(reasoning, 180);
+      if (y + splitReasoning.length * 5 > 270) { pdf.addPage(); y = 20; }
+      pdf.text(splitReasoning, 14, y);
+      y += splitReasoning.length * 5 + 10;
+
+      // Footer stamp
+      if (y > 270) { pdf.addPage(); y = 20; }
+      pdf.setFontSize(8);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text('— END OF DOSSIER — This report is auto-generated and classified. Unauthorised disclosure is prohibited. —', 105, y + 6, { align: 'center' });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     pdf.save(`Intelligence_Report_${new Date().toISOString().split('T')[0]}.pdf`);
   }, [data]);
   const exportJson = useCallback(() => {
